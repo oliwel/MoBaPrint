@@ -1,13 +1,12 @@
 h=12;		//	Anzahl Reihen (Höhe)
-n=10;		//	Anzahl Steine pro Umlauf
-w=4.6;     // Steinbreite (in h)
-l=9;      // Steinlänge (entlang Kreisbogen)
-t = 1.5;      // Prägetiefe
-pat = 3;    // Anzahl der Zeilen nach denen sich das Muster wiederholt
+n=18;		//	Anzahl Steine pro Umlauf
+w=4.37;      // Steinbreite (in h)
+l=4.37;      // Steinlänge (entlang Kreisbogen)
+t = 2;      // Prägetiefe
+pat = 1;    // Anzahl der Zeilen nach denen sich das Muster wiederholt
 sp = 0.4;   // Abstand zwischen den Steinen
 axis = 6;   // Durchmesser des Innenloch
 $fn=32;
-
 
 // Winkel pro Zelle
 /*ds=(dw-w)/sin(360/6);
@@ -28,9 +27,19 @@ ia = 360/n;
 
 // Die Form des Stein ist egal, y=0 ist der Schnittpunkt mit der Oberfläche
 module rect_stone() {
-     // rechteckige steine
-     cube([l,t,w],true);
+     // rechteckige steine    
+    cube([l,t,w],true);
 }
+
+module diamond_stone() {
+     // rechteckige steine    
+    lw = l/sqrt(2);
+    rotate([0,45,0]) {
+        cube([lw,t,lw],true);
+        translate([lw+sp,0,0]) cube([lw,t,lw],true);
+    }
+}
+
 
 module rounded_stone() {
      // abgerundete Steine
@@ -56,8 +65,9 @@ module roller() {
                 }
             }
         }
+        
         //cylinder(ch, cr-3*t, cr-3*t);
-        cylinder(ch, axis/2, axis/2);
+        cylinder(ch+2.4, axis/2, axis/2);
     }      
 }
 
@@ -70,20 +80,24 @@ module hroller() {
             translate([0,0,(w+sp)*(hn+0.5)])            
             for (rn=[0:n]) {            
                 // Der Würfel steckt zur Hälfte im Zylinder
-                rotate([0,0,(rn+hn/pat)*ia]) 
                   translate([0,cr-t/2,0])
                     children(0);
             }        
         }
         //cylinder(ch, cr-3*t, cr-3*t);
         cylinder(ch, axis/2, axis/2);
-    }      
+    }
 }
 
-
-hroller() { rounded_stone(); }
-
-translate([1.5,1.5,0]) minkowski(){
-    cylinder(1,d=1);
-    linear_extrude(1) polygon([[0,0],[0,1],[1,1],[0.8,0]]);
+roller() { diamond_stone(); };
+translate([0,0,ch])
+difference() {
+cylinder(2.7, cr, cr);
+    for (rn=[0:3:n]) {
+        rotate([0,0,(rn+0.5)*ia])
+          translate([0,cr-t/2,1.6])
+            cube([3*(l+sp),t,2.4],true);
+    }
 }
+
+ 

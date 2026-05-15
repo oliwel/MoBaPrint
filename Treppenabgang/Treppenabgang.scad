@@ -39,7 +39,8 @@ module stairs(l=42,w=20,h=28,n=14,bl=12,bd="up",o=0.2) {
 				if (bd == "up") {
 					translate([x,-bl,h-wall]) cube(wall);
 					translate([x,-bl,0]) cube(wall);
-				} else {
+				} 
+                if (bd == "down") {
 					translate([x,l-wall,0]) cube(wall);
 				}
 			}
@@ -57,7 +58,7 @@ module stairs(l=42,w=20,h=28,n=14,bl=12,bd="up",o=0.2) {
 
 }
 
-stairs();
+stairs(80,50,40,4,0,"",1);
 //stairs(18,22,13,6,12);
 /*translate([0,30,13]) stairs(18,width,13,6,8);
 color([0.5,0,0]) {
