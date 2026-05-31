@@ -1,0 +1,13 @@
+room_width  = 100;
+room_depth  = 80;
+room_height = 30;
+front_windows  = [[15,10,8,8], [45,0,15,20], [70,10,8,8]];
+back_windows   = [[10,0,25,25], [70,0,25,25]];
+left_windows   = [[20,10,8,8], [50,10,8,8]];
+right_windows  = [[20,10,8,8], [35,10,5,5], [50,10,8,8]];
+licht_offset   = [-10, -5];
+dach           = [[70,40,5,5]];
+front_wall_pos = [];
+back_wall_pos  = [50];
+left_wall_pos  = [];
+right_wall_pos = [];
