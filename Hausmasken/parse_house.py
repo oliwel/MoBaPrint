@@ -21,7 +21,7 @@ import sys
 
 def is_numeric(s):
     try:
-        int(s)
+        float(s)
         return True
     except ValueError:
         return False
@@ -37,7 +37,7 @@ def parse(filename):
             first = row[0].strip()
             if first == "" or is_numeric(first):
                 if current is not None:
-                    values = [int(c.strip()) for c in row if c.strip()]
+                    values = [float(c.strip()) if '.' in c else int(c.strip()) for c in row if c.strip()]
                     sections[current].append(values)
             else:
                 current = first
@@ -63,12 +63,16 @@ def split(entries):
 def generate(sections):
     w, d, h = sections.get("raum", [[100, 80, 30]])[0]
     licht_rows = sections.get("licht", [])
-    dx, dy = licht_rows[0] if licht_rows else [0, 0]
+    licht_row = licht_rows[0] if licht_rows else [0, 0]
+    dx, dy = licht_row[0], licht_row[1]
+    licht_rot = licht_row[2] if len(licht_row) >= 3 else 0
 
     front_wins, front_pos = split(sections.get("vorne",  []))
     back_wins,  back_pos  = split(sections.get("hinten", []))
     left_wins,  left_pos  = split(sections.get("links",  []))
     right_wins, right_pos = split(sections.get("rechts", []))
+
+    has_licht = "licht" in sections
 
     lines = [
         f"room_width  = {w};",
@@ -78,7 +82,9 @@ def generate(sections):
         f"back_windows   = {vec(back_wins)};",
         f"left_windows   = {vec(left_wins)};",
         f"right_windows  = {vec(right_wins)};",
+        f"has_licht      = {'true' if has_licht else 'false'};",
         f"licht_offset   = [{dx}, {dy}];",
+        f"licht_rotation = {licht_rot};",
         f"dach           = {vec(sections.get('dach', []))};",
         f"front_wall_pos = {list_1d(front_pos)};",
         f"back_wall_pos  = {list_1d(back_pos)};",

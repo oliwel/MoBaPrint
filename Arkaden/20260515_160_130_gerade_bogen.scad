@@ -1,3 +1,4 @@
+$fn = 8;
 // ============================================================
 //  Mauerplatte mit Arkadenbogen für Modellbahn H0 (1:87)
 //  Variante: 40mm senkrechter Pfeiler + 120°-Arkadenbogen
@@ -72,6 +73,17 @@ kaempfer_y = bogen_cy + bogen_ry * sin(bogen_start_deg);
 
 mit_ausschnitt = true;
 bogen_segmente = 60;
+
+// ============================================================
+//  Decken-Parameter (Tunnel-Liner)
+// ============================================================
+decke_tiefe    = 10;  // Tunneltiefe (Steinreihen)
+decke_staerke  =  1;  // Radiale Steindicke der Laibungssteine
+wand_unten     = 10;  // Breite der Seitenwände am Boden (mm)
+leiste_h       =  5;  // Radiale Höhe der Stabilisierungsleiste
+leiste_t       =  5;  // Tiefe der Leiste in Z-Richtung
+
+render_teil = "decke";  // "alle", "wand", "decke"
 
 
 // ============================================================
@@ -331,9 +343,131 @@ module bogenpfeiler() {
 }
 
 // ============================================================
+//  Modul: Innenbogen-Decke — Einzelsteine + Abschlussplatte
+// ============================================================
+module innenbogen_decke() {
+    end_deg = 180 - bogen_start_deg;
+
+    // Steinanzahl entlang Bogen: Bogenlänge / raster_x (identisch zur Wand)
+    bogen_avg_r    = (oeffnung_rx + oeffnung_ry) / 2;
+    bogen_laenge   = bogen_avg_r * bogen_winkel * PI / 180;
+    n_bogen_steine = round(bogen_laenge / raster_x);
+    w_schritt      = bogen_winkel / n_bogen_steine;
+
+    // Steinreihen entlang Tunneltiefe: ziegel_hoehe + fuge_hoehe = raster_y
+    n_z_reihen = floor(decke_tiefe / raster_y);
+
+    // 1) Einzelne Bogensteine: wie arkadensteine() an der inneren Öffnungsellipse
+    for (reihe = [0 : n_z_reihen - 1]) {
+        z0             = reihe * raster_y;
+        // versatz_stones in Steineinheiten: 0 oder 0.5
+        versatz_stones = (reihe % 2 == 0) ? 0 : 0.5;
+
+        // j läuft bis n_bogen_steine (inklusiv) damit der erste halbe Stein
+        // bei versetzten Reihen am linken Rand nicht fehlt
+        for (j = [0 : n_bogen_steine]) {
+            w_left = bogen_start_deg + (j - versatz_stones) * w_schritt;
+            ws = max(w_left + fuge_grad / 2,              bogen_start_deg);
+            we = min(w_left + w_schritt - fuge_grad / 2,  end_deg);
+
+            if (we > ws) {
+                p0 = [ex(ws, oeffnung_rx),                 ey(ws, oeffnung_ry)];
+                p1 = [ex(we, oeffnung_rx),                 ey(we, oeffnung_ry)];
+                p2 = [ex(we, oeffnung_rx + fuge_tiefe), ey(we, oeffnung_ry + fuge_tiefe)];
+                p3 = [ex(ws, oeffnung_rx + fuge_tiefe), ey(ws, oeffnung_ry + fuge_tiefe)];
+
+                translate([bogen_cx, bogen_cy, z0])
+                    linear_extrude(height = ziegel_hoehe)
+                        polygon([p0, p1, p2, p3]);
+            }
+        }
+    }
+
+    // 3) Steine auf den senkrechten Laibungswänden (horizontale Reihen entlang Z)
+    h_spring_j    = bogen_cy + oeffnung_ry * sin(bogen_start_deg);
+    jamb_x_rechts = bogen_cx + oeffnung_rx * cos(bogen_start_deg);
+    jamb_x_links  = bogen_cx - oeffnung_rx * cos(bogen_start_deg);
+
+    n_y_reihen_j = floor(h_spring_j / raster_y);
+    n_z_steine_j = floor(decke_tiefe / raster_x) + 1;
+
+    for (reihe_y = [0 : n_y_reihen_j - 1]) {
+        y0         = reihe_y * raster_y;
+        versatz_zj = (reihe_y % 2 == 0) ? 0 : 0.5;
+
+        for (j = [0 : n_z_steine_j]) {
+            z_left = (j - versatz_zj) * raster_x;
+            zs = max(z_left + fuge_breite / 2,        0);
+            ze = min(z_left + raster_x - fuge_breite / 2, decke_tiefe);
+
+            if (ze > zs) {
+                translate([jamb_x_rechts, y0, zs])
+                    cube([fuge_tiefe, ziegel_hoehe, ze - zs]);
+                translate([jamb_x_links - fuge_tiefe, y0, zs])
+                    cube([fuge_tiefe, ziegel_hoehe, ze - zs]);
+            }
+        }
+    }
+
+    // Gemeinsame Hilfsgrößen für Abschnitte 4 + 5
+    outer_rx  = oeffnung_rx + decke_staerke;
+    outer_ry  = oeffnung_ry + decke_staerke;
+    outer_x_r = bogen_cx + outer_rx * cos(bogen_start_deg);
+    outer_x_l = bogen_cx - outer_rx * cos(bogen_start_deg);
+
+    // 4) Trapezförmige Seitenwände: unten wand_unten mm, oben auf Bogenbreite zuläufend
+    //    Innenfläche beginnt hinter den Laibungssteinen (+ fuge_tiefe), damit diese sichtbar bleiben
+    linear_extrude(height = decke_tiefe)
+        polygon([
+            [jamb_x_rechts + fuge_tiefe,              0],
+            [jamb_x_rechts + wand_unten,              0],
+            [outer_x_r,                               h_spring_j],
+            [jamb_x_rechts + fuge_tiefe,              h_spring_j]
+        ]);
+    linear_extrude(height = decke_tiefe)
+        polygon([
+            [jamb_x_links - wand_unten,               0],
+            [jamb_x_links - fuge_tiefe,               0],
+            [jamb_x_links - fuge_tiefe,               h_spring_j],
+            [outer_x_l,                               h_spring_j]
+        ]);
+
+    // 5) Umlaufende Leiste entlang der ursprünglichen Wand (Bogen + Seiten bis Y=0)
+    translate([bogen_cx, 0, 0])
+        linear_extrude(height = leiste_t)
+            difference() {
+                oeffnung_komplett_2d(
+                    outer_rx + leiste_h, outer_ry + leiste_h,
+                    bogen_cy, bogen_start_deg);
+                oeffnung_komplett_2d(
+                    outer_rx, outer_ry,
+                    bogen_cy, bogen_start_deg);
+            }
+
+    // 2) Geschlossene Deckenplatte über den Steinen (am Außenradius, volle Tunneltiefe)
+    translate([bogen_cx, 0, 0])
+        linear_extrude(height = decke_tiefe)
+            difference() {
+                oeffnung_komplett_2d(
+                    oeffnung_rx + decke_staerke,
+                    oeffnung_ry + decke_staerke,
+                    bogen_cy, bogen_start_deg);
+                oeffnung_komplett_2d(
+                    oeffnung_rx + fuge_tiefe,
+                    oeffnung_ry + fuge_tiefe,
+                    bogen_cy, bogen_start_deg);
+            }
+}
+
+// ============================================================
 //  Rendering
 // ============================================================
 
-mauerplatte();
-translate([-pfeiler_breite, 0, 0]) pfeiler();
-bogenpfeiler();
+if (render_teil == "wand" || render_teil == "alle") {
+    mauerplatte();
+    translate([-pfeiler_breite, 0, 0]) pfeiler();
+    bogenpfeiler();
+}
+if (render_teil == "decke" || render_teil == "alle") {
+    color([1,0,0]) translate([0,0,-decke_tiefe]) innenbogen_decke();
+}
