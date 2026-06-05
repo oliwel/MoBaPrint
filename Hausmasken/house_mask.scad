@@ -33,12 +33,12 @@ module front_cuts(windows) {
 }
 module back_cuts(windows) {
     for (w = windows)
-        translate([w[0], room_depth - wall_t - 0.1, w[1]])
+        translate([room_width - w[0] - w[2], room_depth - wall_t - 0.1, w[1]])
             cube([w[2], wall_t + 0.2, w[3]]);
 }
 module left_cuts(windows) {
     for (w = windows)
-        translate([-0.1, w[0], w[1]])
+        translate([-0.1, room_depth - w[0] - w[2], w[1]])
             cube([wall_t + 0.2, w[2], w[3]]);
 }
 module right_cuts(windows) {
