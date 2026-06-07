@@ -1,25 +1,24 @@
 // Hausmaske mit Fenster- und Türöffnungen aus CSV-Daten
-// Aufruf: python3 parse_house.py sample.csv > house_data.scad
+// Aufruf: python3 server.py --parse sample.csv > house_data.scad
 // Dann diese Datei in OpenSCAD öffnen.
 
 include <house_data.scad>
 
 wall_t     = 0.8;   // Wandstärke [mm]
-licht_w    = 40;  // Dachausschnitt Breite [mm]
-licht_d    = 35;  // Dachausschnitt Tiefe [mm]
-board_slot = 3;   // Versatz der X-Wand vom Mittelpunkt [mm]
-board_cap  = 15;  // Breite der kurzen Querwand [mm]
+licht_w    = 40;    // Lichtausschnitt Breite [mm]
+licht_d    = 35;    // Lichtausschnitt Tiefe [mm]
+board_slot = 3;     // Versatz der X-Wand vom Mittelpunkt [mm]
+board_cap  = 15;    // Breite der kurzen Querwand [mm]
 
-licht_x = (room_width - licht_w) / 2 + licht_offset[0];
-licht_y = (room_depth - licht_d) / 2 + licht_offset[1];
+// licht = [[x, y, rotation], ...]
+// x/y = Abstand von links vorne (Außenwand) zur unteren linken Ecke des Ausschnitts
 
-licht_cx = licht_x + licht_w / 2;
-licht_cy = licht_y + licht_d / 2;
-
-module licht_transform() {
-    translate([licht_cx, licht_cy, 0])
-        rotate([0, 0, licht_rotation])
-            translate([-licht_cx, -licht_cy, 0])
+module licht_transform(l) {
+    cx = l[0] + licht_w / 2;
+    cy = l[1] + licht_d / 2;
+    translate([cx, cy, 0])
+        rotate([0, 0, l[2]])
+            translate([-cx, -cy, 0])
                 children();
 }
 
@@ -54,24 +53,8 @@ module dach_cuts() {
             cube([d[2], d[3], wall_t + 0.2]);
 }
 
-// Board: Kreuzstruktur zentriert auf den Dachausschnitt.
+// Board: Kreuzstruktur für Lichtausschnitt (nutzt globale licht_w, licht_d).
 // Koordinatenursprung = vorne links des Boards (licht_x - wall_t, licht_y - wall_t).
-module board_main_walls() {
-    bw = licht_w + 2 * wall_t;
-    bd = licht_d + 2 * wall_t;
-    cx = bw / 2;
-    cy = bd / 2;
-    h  = room_height - wall_t;
-
-    // X-Wand: volle Breite, board_slot mm von Mitte in +Y
-    translate([0, cy + board_slot - wall_t / 2, 0])
-        cube([bw, wall_t, h]);
-
-    // Y-Wand: durchgehend (keine Lücke, da kein Board eingesteckt wird)
-    translate([cx - wall_t, 0, 0])
-        cube([wall_t, bd, h]);
-}
-
 module board() {
     bw = licht_w + 2 * wall_t;
     bd = licht_d + 2 * wall_t;
@@ -105,51 +88,45 @@ module board() {
 // Wandansatz von Außenwand bis zur Dachöffnungskante,
 // dann entlang der Kante zur nächsten Board-Wand.
 
-module walls_from_back(positions) {
-    ey = licht_y + licht_d;  // hintere Lichtöffnungskante
+module walls_from_back(positions, l) {
+    cx = l[0] + licht_w / 2;
+    ey = l[1] + licht_d;     // hintere Lichtöffnungskante
     for (p = positions) {
-        // senkrecht: Außenwand → Lichtöffnungskante
         translate([p - wall_t/2, ey, 0])
             cube([wall_t, room_depth - wall_t - ey, room_height]);
-        // entlang Kante: p → Board Y-Wand (licht_cx)
-        translate([min(p, licht_cx) - wall_t/2, ey, 0])
-            cube([abs(p - licht_cx) + wall_t, wall_t, room_height]);
+        translate([min(p, cx) - wall_t/2, ey, 0])
+            cube([abs(p - cx) + wall_t, wall_t, room_height]);
     }
 }
 
-module walls_from_front(positions) {
-    ey = licht_y;  // vordere Lichtöffnungskante
+module walls_from_front(positions, l) {
+    cx = l[0] + licht_w / 2;
+    ey = l[1];               // vordere Lichtöffnungskante
     for (p = positions) {
-        // senkrecht: Außenwand → Lichtöffnungskante
         translate([p - wall_t/2, wall_t, 0])
             cube([wall_t, ey - wall_t, room_height]);
-        // entlang Kante: p → Board Y-Wand (licht_cx)
-        translate([min(p, licht_cx) - wall_t/2, ey - wall_t, 0])
-            cube([abs(p - licht_cx) + wall_t, wall_t, room_height]);
+        translate([min(p, cx) - wall_t/2, ey - wall_t, 0])
+            cube([abs(p - cx) + wall_t, wall_t, room_height]);
     }
 }
 
-module walls_from_left(positions) {
-    ex = licht_x;  // linke Lichtöffnungskante
-    bx = licht_cy + board_slot;  // Board X-Wand (Weltkoordinate Y)
+module walls_from_left(positions, l) {
+    ex = l[0];                              // linke Lichtöffnungskante
+    bx = l[1] + licht_d / 2 + board_slot;  // Board X-Wand (Weltkoordinate Y)
     for (p = positions) {
-        // senkrecht: Außenwand → Lichtöffnungskante
         translate([wall_t, p - wall_t/2, 0])
             cube([ex - wall_t, wall_t, room_height]);
-        // entlang Kante: p → Board X-Wand
         translate([ex - wall_t, min(p, bx) - wall_t/2, 0])
             cube([wall_t, abs(p - bx) + wall_t, room_height]);
     }
 }
 
-module walls_from_right(positions) {
-    ex = licht_x + licht_w;  // rechte Lichtöffnungskante
-    bx = licht_cy + board_slot;  // Board X-Wand (Weltkoordinate Y)
+module walls_from_right(positions, l) {
+    ex = l[0] + licht_w;                   // rechte Lichtöffnungskante
+    bx = l[1] + licht_d / 2 + board_slot;  // Board X-Wand (Weltkoordinate Y)
     for (p = positions) {
-        // senkrecht: Außenwand → Lichtöffnungskante
         translate([ex, p - wall_t/2, 0])
             cube([room_width - wall_t - ex, wall_t, room_height]);
-        // entlang Kante: p → Board X-Wand
         translate([ex, min(p, bx) - wall_t/2, 0])
             cube([wall_t, abs(p - bx) + wall_t, room_height]);
     }
@@ -183,32 +160,34 @@ union() {
             translate([room_width - wall_t - 0.1, -0.1, -0.1])
                 cube([wall_t + 0.2, room_depth + 0.2, room_height + 0.2]);
     }
-    // Board im Dachausschnitt zentriert; ohne Licht nur die beiden Hauptwände
-    licht_transform()
-        translate([licht_x - wall_t, licht_y - wall_t, 0])
-            color([1,0,0])
-                if (has_licht) board(); else board_main_walls();
-    // Ansatz-Innenwände von den Außenwänden
-    color([0.5,0.5,0.8]) {
-        walls_from_back(back_wall_pos);
-        walls_from_front(front_wall_pos);
-        walls_from_left(left_wall_pos);
-        walls_from_right(right_wall_pos);
-    }
-    // Decke mit Lichtausschnitt (kein Boden)
+    // Board für jeden Lichtausschnitt
+    for (l = licht)
+        licht_transform(l)
+            translate([l[0] - wall_t, l[1] - wall_t, 0])
+                color([1,0,0])
+                    board();
+    // Ansatz-Innenwände (referenzieren ersten Lichtausschnitt)
+    if (len(licht) > 0)
+        color([0.5,0.5,0.8]) {
+            walls_from_back(back_wall_pos, licht[0]);
+            walls_from_front(front_wall_pos, licht[0]);
+            walls_from_left(left_wall_pos, licht[0]);
+            walls_from_right(right_wall_pos, licht[0]);
+        }
+    // Decke mit Lichtausschnitten (kein Boden)
     difference() {
         translate([0, 0, room_height - wall_t])
             cube([room_width, room_depth, wall_t]);
-        if (has_licht)
-            licht_transform()
-                translate([licht_x, licht_y, room_height - wall_t - 0.1])
+        for (l = licht)
+            licht_transform(l)
+                translate([l[0], l[1], room_height - wall_t - 0.1])
                     cube([licht_w, licht_d, wall_t + 0.2]);
         dach_cuts();
     }
-    // Rand um den Dachausschnitt: Wandstärke breit, 2mm hoch (Innenseite)
-    if (has_licht)
-        licht_transform()
-            translate([licht_x - wall_t, licht_y - wall_t, room_height - wall_t - 2])
+    // Rand um jeden Lichtausschnitt: Wandstärke breit, 2mm hoch (Innenseite)
+    for (l = licht)
+        licht_transform(l)
+            translate([l[0] - wall_t, l[1] - wall_t, room_height - wall_t - 2])
                 difference() {
                     cube([licht_w + 2 * wall_t, licht_d + 2 * wall_t, 2]);
                     translate([wall_t, wall_t, -0.1])
